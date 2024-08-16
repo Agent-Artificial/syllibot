@@ -58,6 +58,7 @@ def get_modes():
     """
     response = _send_graphql_request(query)
     data = response["data"]
+    print(data)
     return [mode["name"] for mode in data["modes"]]
 
 

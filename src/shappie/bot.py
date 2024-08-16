@@ -11,9 +11,11 @@ from . import interaction, llm
 
 MONGODB_URL = os.environ.get("MONGODB_URL")
 MONGODB_NAME = os.environ.get("MONGODB_NAME")
+OPENAI_BASEURL = os.environ.get("OPENAI_BASEURL")
 OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY")
 PERSIST = bool(os.environ.get("PERSIST", False))
 
+openai.baseurl = OPENAI_BASEURL
 openai.api_key = OPENAI_API_KEY
 
 
@@ -24,8 +26,6 @@ class ShappieClient(discord.Client):
         self._store = None
         if PERSIST:
             self._store = api.storage.DataStore(MONGODB_URL, MONGODB_NAME)
-        self.pool = mafic.NodePool(self)
-        self.loop = create_task(self.add_nodes())
 
         self._channel_access_config = {}
         with open("configs/channel_access.json") as f:
@@ -35,15 +35,6 @@ class ShappieClient(discord.Client):
                     "allowed_channels": guild["allowed_channels"],
                     "reference_channel": guild["reference_channel"],
                 }
-        self.load_extension('dismusic')
-
-    async def add_nodes(self):
-        await self.pool.create_nodes(
-            host="0.0.0.0",
-            port=9095,
-            label="MAIN",
-            password=os.getenv("MAFIC_PASSWORD"),
-        )
 
     async def setup_hook(self):
         await self.tree.sync()

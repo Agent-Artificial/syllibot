@@ -1,3 +1,5 @@
+import os
+
 import asyncio
 import json
 
@@ -38,7 +40,7 @@ class DatabaseSeeder:
         await self._insert_modes()
         await self._insert_constitutions()
         await self._insert_personas()
-        await self._insert_messages()
+        #await self._insert_messages()
         await self._insert_layers()
 
     async def _clear_database(self):

@@ -12,8 +12,8 @@ from api import storage
 
 
 def get_data_store() -> storage.DataStore:
-    url = os.environ.get("MONGO_URI")
-    db_name = os.environ.get("MONGO_DB_NAME")
+    url = os.environ.get("MONGODB_URL")
+    db_name = os.environ.get("MONGODB_NAME")
     return storage.DataStore(url, db_name)
 
 
