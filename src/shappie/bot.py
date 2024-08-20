@@ -4,6 +4,7 @@ import os
 import typing
 
 import discord
+import nextcord
 import openai
 
 import api.storage
@@ -19,7 +20,7 @@ openai.baseurl = OPENAI_BASEURL
 openai.api_key = OPENAI_API_KEY
 
 
-class ShappieClient(discord.Client):
+class ShappieClient(nextcord.Client):
     def __init__(self, *, intents: discord.Intents, **options: typing.Any):
         super().__init__(intents=intents, **options)
         self.tree = discord.app_commands.CommandTree(self)
@@ -37,6 +38,11 @@ class ShappieClient(discord.Client):
                 }
 
     async def setup_hook(self):
+        # Register a simple ping command
+        @self.tree.command()
+        async def ping(interaction: nextcord.Interaction):
+            await interaction.response.send_message("Pong!")
+        
         await self.tree.sync()
 
     async def on_raw_reaction_add(self, payload: discord.RawReactionActionEvent):

@@ -12,9 +12,10 @@ from api import storage
 
 
 def get_data_store() -> storage.DataStore:
-    url = os.environ.get("MONGODB_URL")
+    url = os.environ.get("MONGODB_URI")
     db_name = os.environ.get("MONGODB_NAME")
-    return storage.DataStore(url, db_name)
+    data_store = storage.DataStore(url, db_name)
+    return data_store
 
 
 async def get_context(
@@ -63,6 +64,7 @@ class Query:
     async def state(self, info: Info) -> State | None:
         data_store: storage.DataStore = info.context["data_store"]
         state = await data_store.get_state()
+        print(f"state: {state}")
         if state:
             return state
 
