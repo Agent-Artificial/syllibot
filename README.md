@@ -1,5 +1,7 @@
 ## How to Run
-Clone the repository and start the bot using `cargo run`
+1. Clone the repository and copy the `.env.example` to `.env`
+2. Add your `DISCORD_TOKEN` to the `.env`
+3. Start the bot using `cargo run`
 
 ## Languages
 
