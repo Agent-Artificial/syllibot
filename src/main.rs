@@ -7,6 +7,8 @@ use base64::{engine::general_purpose, Engine as _};
 use tokio::io::AsyncReadExt;
 use serde::{Deserialize, Serialize};
 
+mod language_detection;
+
 #[derive(Debug, Serialize, Deserialize)]
 struct AudioPost {
 	input: String,
@@ -156,6 +158,52 @@ async fn autocomplete_language<'a>(
 		.collect()
 }
 
+#[derive(Debug, poise::Modal)]
+struct TranslationModal {
+    source_language: String,
+    target_language: String,
+}
+
+/// Translate a message (hint: Right click a message and go to Apps -> Translate)
+#[poise::command(context_menu_command = "Translate", slash_command, prefix_command)]
+pub async fn translate_message(
+    ctx: Context<'_>,
+    #[description = "Message to translate (enter a link or ID)"]
+    msg: serenity::Message,
+) -> Result<()> {
+    let message_content = &msg.content;
+
+    let detected_language_map = language_detection::detect_language(message_content);
+    let detected_language = detected_language_map.into_iter().max_by(|a, b| a.1.partial_cmp(&b.1).unwrap()).unwrap();
+    log::info!("translate_message::detected_language::{:?}", detected_language);
+
+    let reply = {
+        let components = vec![serenity::CreateActionRow::Buttons(vec![
+            serenity::CreateButton::new("translation_settings_modal")
+                .label("Set languages")
+                .style(serenity::ButtonStyle::Success),
+        ])];
+
+        poise::CreateReply::default()
+            .content("Click the button below to configure your source and target languages.")
+            .components(components)
+    };
+
+    ctx.send(reply).await?;
+
+    while let Some(modal_interaction) = serenity::ComponentInteractionCollector::new(ctx.serenity_context())
+        .timeout(std::time::Duration::from_secs(120))
+        .filter(move |modal_interaction| modal_interaction.data.custom_id == "translation_settings_modal")
+        .await
+        {
+            let data = poise::execute_modal_on_component_interaction::<TranslationModal>(ctx, modal_interaction, None, None).await?;
+            println!("Got data: {:?}", data);
+        }
+
+    //ctx.say(format!("\"{}\" will be translated from {} to {}", message_content, source_language, target_language)).await?;
+    Ok(())
+}
+
 /// Transcribes an audio file
 #[poise::command(slash_command, prefix_command)]
 async fn audio_to_text(
@@ -230,7 +278,7 @@ async fn main() {
 
     let framework = poise::Framework::builder()
         .options(poise::FrameworkOptions {
-            commands: vec![audio_to_text()],
+            commands: vec![audio_to_text(), translate_message()],
             ..Default::default()
         })
         .setup(|ctx, _ready, framework| {
