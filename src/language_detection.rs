@@ -1,7 +1,19 @@
 use lingua::{Language, LanguageDetector, LanguageDetectorBuilder};
 
 pub fn detect_language(text: &String) -> Vec<(String, f64)> {
-    let detector: LanguageDetector = LanguageDetectorBuilder::from_all_languages().build();
+    let languages = vec![
+        Language::English,
+        Language::Polish,
+        Language::French,
+        Language::German,
+        Language::Spanish,
+        Language::Romanian,
+        Language::Turkish,
+        Language::Dutch,
+        Language::Swedish,
+        Language::Slovene,
+    ];
+    let detector: LanguageDetector = LanguageDetectorBuilder::from_languages(&languages).build();
     let confidence_values: Vec<(Language, f64)> = detector
         .compute_language_confidence_values(text);
     let output_map: Vec<(String, f64)> = confidence_values
