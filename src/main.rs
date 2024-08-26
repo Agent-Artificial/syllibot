@@ -1,4 +1,4 @@
-use poise::serenity_prelude as serenity;
+use poise::serenity_prelude::{self as serenity, ComponentInteractionDataKind};
 use dotenv::dotenv;
 use core::str;
 use std::io::Cursor;
@@ -164,6 +164,147 @@ struct TranslationModal {
     target_language: String,
 }
 
+pub fn language_select_menu_options() -> Vec<serenity::CreateSelectMenuOption> {
+    let available_languages = vec![
+		"English",
+		"Cantonese",
+		"French",
+		"German",
+		"Hindi",
+		"Italian",
+		"Japanese",
+		"Korean",
+		"Mandarin Chinese",
+		"Russian",
+		"Spanish",
+		"Afrikaans",
+		"Amharic",
+		"Armenian",
+		"Assamese",
+		"Asturian",
+		"Basque",
+		"Belarusian",
+		"Bengali",
+		"Bosnian",
+		"Bulgarian",
+		"Burmese",
+		"Catalan",
+		"Cebuano",
+		"Central",
+		"Colloquial Malay",
+		"Croatian",
+		"Czech",
+		"Danish",
+		"Dutch",
+		"Egyptian Arabic",
+		"Estonian",
+		"Finnish",
+		"Galician",
+		"Ganda",
+		"Georgian",
+		"Gujarati",
+		"Halh Mongolian",
+		"Hebrew",
+		"Hungarian",
+		"Icelandic",
+		"Igbo",
+		"Indonesian",
+		"Irish",
+		"Javanese",
+		"Kabuverdianu",
+		"Kamba",
+		"Kannada",
+		"Kazakh",
+		"Khmer",
+		"Kyrgyz",
+		"Lao",
+		"Lithuanian",
+		"Luo",
+		"Luxembourgish",
+		"Macedonian",
+		"Maithili",
+		"Malayalam",
+		"Maltese",
+		"Mandarin Chinese Hant",
+		"Marathi",
+		"Meitei",
+		"Modern Standard Arabic",
+		"Moroccan Arabic",
+		"Nepali",
+		"Nigerian Fulfulde",
+		"North Azerbaijani",
+		"Northern Uzbek",
+		"Norwegian Bokmål",
+		"Norwegian Nynorsk",
+		"Nyanja",
+		"Occitan",
+		"Odia",
+		"Polish",
+		"Portuguese",
+		"Punjabi",
+		"Romanian",
+		"Serbian",
+		"Shona",
+		"Sindhi",
+		"Slovak",
+		"Slovenian",
+		"Somali",
+		"Southern Pashto",
+		"Standard Latvian",
+		"Standard Malay",
+		"Swahili",
+		"Swedish",
+		"Tagalog",
+		"Tajik",
+		"Tamil",
+		"Telugu",
+		"Thai",
+		"Turkish",
+		"Ukrainian",
+		"Urdu",
+		"Vietnamese",
+		"Welsh",
+		"West Central Oromo",
+		"Western Persian",
+		"Xhosa",
+		"Yoruba",
+		"Zulu",
+    ];
+
+    available_languages.into_iter().map(|lang| serenity::CreateSelectMenuOption::new(lang, lang)).take(25).collect()
+}
+
+pub async fn text2text(text: &String, source_language: &String, target_language: &String) -> Result<String> {
+	let audio_post = AudioPost {
+		input: text.to_owned(),
+		source_language: source_language.to_owned(),
+		target_language: target_language.to_owned(),
+		task_string: "text2text".to_string(),
+	};
+	let body = AudioPostData {
+		data: audio_post,
+	};
+
+	info!("text2text::body::{:?}", body);
+
+    let client = reqwest::Client::new();
+    let response = client
+        .post("https://miner-cellium.ngrok.app/modules/translation/process")
+        .header("content-type", "application/json")
+        .json(&body)
+        .send().await?;
+
+	info!("audio_to_text::post_response::{:?}", response);
+
+    let response_text: String = response.text().await?;
+    let value: serde_json::Value = serde_json::from_str(&response_text).unwrap();
+    let json_str: String = value.as_str().unwrap().into();
+	let decoded_bytes = general_purpose::STANDARD.decode(&json_str)?;
+    let decoded_text = str::from_utf8(&decoded_bytes)?;
+    info!("audio_to_text::decoded_text::{:?}", decoded_text);
+    Ok(decoded_text.to_string())
+}
+
 /// Translate a message (hint: Right click a message and go to Apps -> Translate)
 #[poise::command(context_menu_command = "Translate", slash_command, prefix_command)]
 pub async fn translate_message(
@@ -171,6 +312,7 @@ pub async fn translate_message(
     #[description = "Message to translate (enter a link or ID)"]
     msg: serenity::Message,
 ) -> Result<()> {
+    let interaction_id = ctx.id();
     let message_content = &msg.content;
 
     let detected_language_map = language_detection::detect_language(message_content);
@@ -178,29 +320,52 @@ pub async fn translate_message(
     log::info!("translate_message::detected_language::{:?}", detected_language);
 
     let reply = {
-        let components = vec![serenity::CreateActionRow::Buttons(vec![
-            serenity::CreateButton::new("translation_settings_modal")
-                .label("Set languages")
-                .style(serenity::ButtonStyle::Success),
-        ])];
+        let language_select_menu_options = language_select_menu_options();
+        let components = vec![serenity::CreateActionRow::SelectMenu(
+            serenity::CreateSelectMenu::new(
+                format!("target_language_selector_{}", interaction_id),
+                serenity::CreateSelectMenuKind::String {
+                    options: language_select_menu_options
+                }
+            )
+        )];
 
         poise::CreateReply::default()
-            .content("Click the button below to configure your source and target languages.")
+            .content("Select the language to translate to with the dropdown below.")
             .components(components)
+            .ephemeral(true)
     };
 
-    ctx.send(reply).await?;
+    let ephemeral_reply = ctx.send(reply).await?;
 
-    while let Some(modal_interaction) = serenity::ComponentInteractionCollector::new(ctx.serenity_context())
+    while let Some(component_interaction) = serenity::ComponentInteractionCollector::new(ctx.serenity_context())
+        .author_id(ctx.author().id)
+        .channel_id(ctx.channel_id())
         .timeout(std::time::Duration::from_secs(120))
-        .filter(move |modal_interaction| modal_interaction.data.custom_id == "translation_settings_modal")
+        .filter(move |component_interaction| component_interaction.data.custom_id == format!("target_language_selector_{}", interaction_id))
         .await
         {
-            let data = poise::execute_modal_on_component_interaction::<TranslationModal>(ctx, modal_interaction, None, None).await?;
-            println!("Got data: {:?}", data);
+            let cidk = &component_interaction.data.kind;
+            let chosen_value =  match cidk {
+                ComponentInteractionDataKind::StringSelect { values } => values[0].clone(),
+                _ => "English".to_string(),
+            };
+            info!("translate_message::component_interaction::chosen_value::{}", chosen_value);
+            ephemeral_reply.edit(
+                ctx,
+                poise::CreateReply::default()
+                    .content(format!("Translating from {} to {}...", &detected_language.0, &chosen_value))
+                    .ephemeral(true)
+                    .components(vec![])
+                ).await?;
+            component_interaction.defer_ephemeral(ctx).await?;
+            let translated_text = text2text(message_content, &detected_language.0, &chosen_value).await?;
+            msg.reply(ctx, format!("{}", translated_text)).await?;
+            info!("translate_message::sent_reply");
+            ephemeral_reply.delete(ctx).await?;
+            component_interaction.delete_response(ctx).await?;
         }
 
-    //ctx.say(format!("\"{}\" will be translated from {} to {}", message_content, source_language, target_language)).await?;
     Ok(())
 }
 
