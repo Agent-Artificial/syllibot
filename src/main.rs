@@ -42,115 +42,27 @@ async fn delete_file(filename: &String) -> Result<()> {
     Ok(())
 }
 
+pub fn get_available_languages() -> Vec<&'static str> {
+    let available_languages = vec![
+		"English",
+		"Polish",
+		"French",
+        "German",
+		"Spanish",
+		"Romanian",
+		"Turkish",
+		"Dutch",
+		"Swedish",
+		"Slovenian",
+    ];
+    available_languages
+}
+
 async fn autocomplete_language<'a>(
     _ctx: Context<'_>,
     partial: &str,
 ) -> Vec<String> {
-	let available_languages = vec![
-		"English",
-		"Cantonese",
-		"French",
-		"German",
-		"Hindi",
-		"Italian",
-		"Japanese",
-		"Korean",
-		"Mandarin Chinese",
-		"Russian",
-		"Spanish",
-		"Afrikaans",
-		"Amharic",
-		"Armenian",
-		"Assamese",
-		"Asturian",
-		"Basque",
-		"Belarusian",
-		"Bengali",
-		"Bosnian",
-		"Bulgarian",
-		"Burmese",
-		"Catalan",
-		"Cebuano",
-		"Central",
-		"Colloquial Malay",
-		"Croatian",
-		"Czech",
-		"Danish",
-		"Dutch",
-		"Egyptian Arabic",
-		"Estonian",
-		"Finnish",
-		"Galician",
-		"Ganda",
-		"Georgian",
-		"Gujarati",
-		"Halh Mongolian",
-		"Hebrew",
-		"Hungarian",
-		"Icelandic",
-		"Igbo",
-		"Indonesian",
-		"Irish",
-		"Javanese",
-		"Kabuverdianu",
-		"Kamba",
-		"Kannada",
-		"Kazakh",
-		"Khmer",
-		"Kyrgyz",
-		"Lao",
-		"Lithuanian",
-		"Luo",
-		"Luxembourgish",
-		"Macedonian",
-		"Maithili",
-		"Malayalam",
-		"Maltese",
-		"Mandarin Chinese Hant",
-		"Marathi",
-		"Meitei",
-		"Modern Standard Arabic",
-		"Moroccan Arabic",
-		"Nepali",
-		"Nigerian Fulfulde",
-		"North Azerbaijani",
-		"Northern Uzbek",
-		"Norwegian Bokmål",
-		"Norwegian Nynorsk",
-		"Nyanja",
-		"Occitan",
-		"Odia",
-		"Polish",
-		"Portuguese",
-		"Punjabi",
-		"Romanian",
-		"Serbian",
-		"Shona",
-		"Sindhi",
-		"Slovak",
-		"Slovenian",
-		"Somali",
-		"Southern Pashto",
-		"Standard Latvian",
-		"Standard Malay",
-		"Swahili",
-		"Swedish",
-		"Tagalog",
-		"Tajik",
-		"Tamil",
-		"Telugu",
-		"Thai",
-		"Turkish",
-		"Ukrainian",
-		"Urdu",
-		"Vietnamese",
-		"Welsh",
-		"West Central Oromo",
-		"Western Persian",
-		"Xhosa",
-		"Yoruba",
-		"Zulu",
-    ];
+	let available_languages = get_available_languages();
 
     available_languages.into_iter()
 		.filter(move |name| name.starts_with(partial))
@@ -165,112 +77,7 @@ struct TranslationModal {
 }
 
 pub fn language_select_menu_options() -> Vec<serenity::CreateSelectMenuOption> {
-    let available_languages = vec![
-		"English",
-		"Cantonese",
-		"French",
-		"German",
-		"Hindi",
-		"Italian",
-		"Japanese",
-		"Korean",
-		"Mandarin Chinese",
-		"Russian",
-		"Spanish",
-		"Afrikaans",
-		"Amharic",
-		"Armenian",
-		"Assamese",
-		"Asturian",
-		"Basque",
-		"Belarusian",
-		"Bengali",
-		"Bosnian",
-		"Bulgarian",
-		"Burmese",
-		"Catalan",
-		"Cebuano",
-		"Central",
-		"Colloquial Malay",
-		"Croatian",
-		"Czech",
-		"Danish",
-		"Dutch",
-		"Egyptian Arabic",
-		"Estonian",
-		"Finnish",
-		"Galician",
-		"Ganda",
-		"Georgian",
-		"Gujarati",
-		"Halh Mongolian",
-		"Hebrew",
-		"Hungarian",
-		"Icelandic",
-		"Igbo",
-		"Indonesian",
-		"Irish",
-		"Javanese",
-		"Kabuverdianu",
-		"Kamba",
-		"Kannada",
-		"Kazakh",
-		"Khmer",
-		"Kyrgyz",
-		"Lao",
-		"Lithuanian",
-		"Luo",
-		"Luxembourgish",
-		"Macedonian",
-		"Maithili",
-		"Malayalam",
-		"Maltese",
-		"Mandarin Chinese Hant",
-		"Marathi",
-		"Meitei",
-		"Modern Standard Arabic",
-		"Moroccan Arabic",
-		"Nepali",
-		"Nigerian Fulfulde",
-		"North Azerbaijani",
-		"Northern Uzbek",
-		"Norwegian Bokmål",
-		"Norwegian Nynorsk",
-		"Nyanja",
-		"Occitan",
-		"Odia",
-		"Polish",
-		"Portuguese",
-		"Punjabi",
-		"Romanian",
-		"Serbian",
-		"Shona",
-		"Sindhi",
-		"Slovak",
-		"Slovenian",
-		"Somali",
-		"Southern Pashto",
-		"Standard Latvian",
-		"Standard Malay",
-		"Swahili",
-		"Swedish",
-		"Tagalog",
-		"Tajik",
-		"Tamil",
-		"Telugu",
-		"Thai",
-		"Turkish",
-		"Ukrainian",
-		"Urdu",
-		"Vietnamese",
-		"Welsh",
-		"West Central Oromo",
-		"Western Persian",
-		"Xhosa",
-		"Yoruba",
-		"Zulu",
-    ];
-
+    let available_languages = get_available_languages();
     available_languages.into_iter().map(|lang| serenity::CreateSelectMenuOption::new(lang, lang)).take(25).collect()
 }
 
@@ -305,6 +112,19 @@ pub async fn text2text(text: &String, source_language: &String, target_language:
     Ok(decoded_text.to_string())
 }
 
+/// List supported languages
+#[poise::command(slash_command, prefix_command)]
+pub async fn supported_languages(
+    ctx: Context<'_>,
+) -> Result<()> {
+    let available_languages = get_available_languages();
+    let reply = poise::CreateReply::default()
+            .content(available_languages.iter().map(|i| format!("- {}", i)).collect::<Vec<String>>().join("\n"))
+            .ephemeral(true);
+    ctx.send(reply).await?;
+    Ok(())
+}
+
 /// Translate a message (hint: Right click a message and go to Apps -> Translate)
 #[poise::command(context_menu_command = "Translate", slash_command, prefix_command)]
 pub async fn translate_message(
@@ -315,58 +135,64 @@ pub async fn translate_message(
     let interaction_id = ctx.id();
     let message_content = &msg.content;
 
-    let detected_language_map = language_detection::detect_language(message_content);
-    let detected_language = detected_language_map.into_iter().max_by(|a, b| a.1.partial_cmp(&b.1).unwrap()).unwrap();
-    log::info!("translate_message::detected_language::{:?}", detected_language);
+    match language_detection::detect_language(message_content) {
+        Ok(detected_language) => {
+            log::info!("translate_message::detected_language::{:?}", detected_language);
 
-    let reply = {
-        let language_select_menu_options = language_select_menu_options();
-        let components = vec![serenity::CreateActionRow::SelectMenu(
-            serenity::CreateSelectMenu::new(
-                format!("target_language_selector_{}", interaction_id),
-                serenity::CreateSelectMenuKind::String {
-                    options: language_select_menu_options
-                }
-            )
-        )];
+            let reply = {
+                let language_select_menu_options = language_select_menu_options();
+                let components = vec![serenity::CreateActionRow::SelectMenu(
+                    serenity::CreateSelectMenu::new(
+                        format!("target_language_selector_{}", interaction_id),
+                        serenity::CreateSelectMenuKind::String {
+                            options: language_select_menu_options
+                        }
+                    )
+                )];
 
-        poise::CreateReply::default()
-            .content("Select the language to translate to with the dropdown below.")
-            .components(components)
-            .ephemeral(true)
-    };
-
-    let ephemeral_reply = ctx.send(reply).await?;
-
-    while let Some(component_interaction) = serenity::ComponentInteractionCollector::new(ctx.serenity_context())
-        .author_id(ctx.author().id)
-        .channel_id(ctx.channel_id())
-        .timeout(std::time::Duration::from_secs(120))
-        .filter(move |component_interaction| component_interaction.data.custom_id == format!("target_language_selector_{}", interaction_id))
-        .await
-        {
-            let cidk = &component_interaction.data.kind;
-            let chosen_value =  match cidk {
-                ComponentInteractionDataKind::StringSelect { values } => values[0].clone(),
-                _ => "English".to_string(),
-            };
-            info!("translate_message::component_interaction::chosen_value::{}", chosen_value);
-            ephemeral_reply.edit(
-                ctx,
                 poise::CreateReply::default()
-                    .content(format!("Translating from {} to {}...", &detected_language.0, &chosen_value))
+                    .content("Select the language to translate to with the dropdown below.")
+                    .components(components)
                     .ephemeral(true)
-                    .components(vec![])
-                ).await?;
-            component_interaction.defer_ephemeral(ctx).await?;
-            let translated_text = text2text(message_content, &detected_language.0, &chosen_value).await?;
-            msg.reply(ctx, format!("{}", translated_text)).await?;
-            info!("translate_message::sent_reply");
-            ephemeral_reply.delete(ctx).await?;
-            component_interaction.delete_response(ctx).await?;
-        }
+            };
 
-    Ok(())
+            let ephemeral_reply = ctx.send(reply).await?;
+
+            while let Some(component_interaction) = serenity::ComponentInteractionCollector::new(ctx.serenity_context())
+                .author_id(ctx.author().id)
+                .channel_id(ctx.channel_id())
+                .timeout(std::time::Duration::from_secs(120))
+                .filter(move |component_interaction| component_interaction.data.custom_id == format!("target_language_selector_{}", interaction_id))
+                .await
+                {
+                    let cidk = &component_interaction.data.kind;
+                    let chosen_value =  match cidk {
+                        ComponentInteractionDataKind::StringSelect { values } => values[0].clone(),
+                        _ => "English".to_string(),
+                    };
+                    info!("translate_message::component_interaction::chosen_value::{}", chosen_value);
+                    ephemeral_reply.edit(
+                        ctx,
+                        poise::CreateReply::default()
+                            .content(format!("Translating from {} to {}...", &detected_language, &chosen_value))
+                            .ephemeral(true)
+                            .components(vec![])
+                        ).await?;
+                    component_interaction.defer_ephemeral(ctx).await?;
+                    let translated_text = text2text(message_content, &detected_language, &chosen_value).await?;
+                    msg.reply(ctx, format!("{}", translated_text)).await?;
+                    info!("translate_message::sent_reply");
+                    ephemeral_reply.delete(ctx).await?;
+                    component_interaction.delete_response(ctx).await?;
+                }
+
+            Ok(())
+        },
+        Err(err) => {
+            msg.reply(ctx, err).await?;
+            Ok(())
+        }
+    }
 }
 
 /// Transcribes an audio file
@@ -443,7 +269,11 @@ async fn main() {
 
     let framework = poise::Framework::builder()
         .options(poise::FrameworkOptions {
-            commands: vec![audio_to_text(), translate_message()],
+            commands: vec![
+                audio_to_text(),
+                translate_message(),
+                supported_languages(),
+            ],
             ..Default::default()
         })
         .setup(|ctx, _ready, framework| {
