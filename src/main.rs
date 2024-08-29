@@ -1,3 +1,4 @@
+use language_detection::detect_language;
 use poise::serenity_prelude::{self as serenity, ComponentInteractionDataKind};
 use dotenv::dotenv;
 use core::str;
@@ -54,8 +55,26 @@ pub fn get_available_languages() -> Vec<&'static str> {
 		"Dutch",
 		"Swedish",
 		"Slovenian",
+        "Portuguese",
     ];
     available_languages
+}
+
+pub fn get_available_flags() -> Vec<&'static str> {
+    let available_flags = vec![
+        "🇺🇸",
+        "🇵🇱",
+        "🇫🇷",
+        "🇩🇪",
+        "🇲🇽",
+        "🇷🇴",
+        "🇹🇷",
+        "🇳🇱",
+        "🇸🇪",
+        "🇸🇮",
+        "🇵🇹",
+    ];
+    available_flags
 }
 
 async fn autocomplete_language<'a>(
@@ -125,8 +144,38 @@ pub async fn supported_languages(
     Ok(())
 }
 
-/// Translate a message (hint: Right click a message and go to Apps -> Translate)
-#[poise::command(context_menu_command = "Translate", slash_command, prefix_command)]
+/// Translate text into a language of your choice.
+#[poise::command(slash_command, prefix_command)]
+pub async fn translate_text(
+    ctx: Context<'_>,
+    #[description = "Text to translate"]
+    text: String,
+    #[description = "Target Language"]
+	#[autocomplete = "autocomplete_language"]
+	target_language: String,
+) -> Result<()> {
+    ctx.defer().await?;
+    match language_detection::detect_language(&text) {
+        Ok(detected_language) => {
+            log::info!("translate_text::detected_language::{:?}", detected_language);
+
+            let translated_text = text2text(&text, &detected_language, &target_language).await?;
+
+            ctx.say(translated_text).await?;
+
+            Ok(())
+        }
+        Err(error_message) => {
+            log::error!("translate_text::language_detection::{:?}", error_message);
+            ctx.say(error_message).await?;
+
+            Ok(())
+        }
+    }
+}
+
+/// Translate this message.
+#[poise::command(context_menu_command = "Translate", prefix_command)]
 pub async fn translate_message(
     ctx: Context<'_>,
     #[description = "Message to translate (enter a link or ID)"]
@@ -135,28 +184,28 @@ pub async fn translate_message(
     let interaction_id = ctx.id();
     let message_content = &msg.content;
 
+    let reply = {
+        let language_select_menu_options = language_select_menu_options();
+        let components = vec![serenity::CreateActionRow::SelectMenu(
+            serenity::CreateSelectMenu::new(
+                format!("target_language_selector_{}", interaction_id),
+                serenity::CreateSelectMenuKind::String {
+                    options: language_select_menu_options
+                }
+            )
+        )];
+
+        poise::CreateReply::default()
+            .content("Which language would you like to translate to?")
+            .components(components)
+            .ephemeral(true)
+    };
+
+    let ephemeral_reply = ctx.send(reply).await?;
+
     match language_detection::detect_language(message_content) {
         Ok(detected_language) => {
             log::info!("translate_message::detected_language::{:?}", detected_language);
-
-            let reply = {
-                let language_select_menu_options = language_select_menu_options();
-                let components = vec![serenity::CreateActionRow::SelectMenu(
-                    serenity::CreateSelectMenu::new(
-                        format!("target_language_selector_{}", interaction_id),
-                        serenity::CreateSelectMenuKind::String {
-                            options: language_select_menu_options
-                        }
-                    )
-                )];
-
-                poise::CreateReply::default()
-                    .content("Select the language to translate to with the dropdown below.")
-                    .components(components)
-                    .ephemeral(true)
-            };
-
-            let ephemeral_reply = ctx.send(reply).await?;
 
             while let Some(component_interaction) = serenity::ComponentInteractionCollector::new(ctx.serenity_context())
                 .author_id(ctx.author().id)
@@ -190,12 +239,13 @@ pub async fn translate_message(
         },
         Err(err) => {
             msg.reply(ctx, err).await?;
+            ephemeral_reply.delete(ctx).await?;
             Ok(())
         }
     }
 }
 
-/// Transcribes an audio file
+/// Transcribes an audio file. Requires an audio file upload.
 #[poise::command(slash_command, prefix_command)]
 async fn audio_to_text(
     ctx: Context<'_>,
@@ -256,6 +306,51 @@ async fn audio_to_text(
     Ok(())
 }
 
+async fn handle_reaction(
+    ctx: &serenity::Context,
+    reaction: &serenity::Reaction,
+) -> Result<()> {
+    let available_flags = get_available_flags();
+    let available_languages = get_available_languages();
+    let emoji = reaction.emoji.to_string();
+    for (index, s) in available_flags.iter().enumerate() {
+        if *s == emoji {
+            log::info!("handle_reaction::match_found::{}", available_languages[index]);
+            let message = reaction.message(ctx).await?;
+            let message_content = &message.content;
+            log::info!("handle_reaction::message_content::{}", message_content);
+            match detect_language(&message_content) {
+                Ok(detected_language) => {
+                    let translation = text2text(message_content, &detected_language, &available_languages[index].to_string()).await?;
+                    message.reply(ctx, translation).await?;
+                }
+                Err(error_text) => {
+                    message.reply(ctx, error_text).await?;
+                }
+            }
+        }
+    }
+    Ok(())
+}
+
+async fn event_handler(
+    ctx: &serenity::Context,
+    event: &serenity::FullEvent,
+    _framework: poise::FrameworkContext<'_, Data, Error>,
+    _data: &Data,
+) -> Result<()> {
+    match event {
+        serenity::FullEvent::Ready { data_about_bot, .. } => {
+            log::info!("Logged in as {}", data_about_bot.user.name);
+        }
+        serenity::FullEvent::ReactionAdd { add_reaction } => {
+            handle_reaction(ctx, add_reaction).await?;
+        }
+        _ => {}
+    }
+    Ok(())
+}
+
 #[tokio::main]
 async fn main() {
     if std::env::var("RUST_LOG").is_err() {
@@ -272,8 +367,12 @@ async fn main() {
             commands: vec![
                 audio_to_text(),
                 translate_message(),
+                translate_text(),
                 supported_languages(),
             ],
+            event_handler: |ctx, event, framework, data| {
+                Box::pin(event_handler(ctx, event, framework, data))
+            },
             ..Default::default()
         })
         .setup(|ctx, _ready, framework| {

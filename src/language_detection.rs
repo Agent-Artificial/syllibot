@@ -13,6 +13,7 @@ pub fn detect_language(text: &String) -> std::result::Result<String, String> {
         Language::Dutch,
         Language::Swedish,
         Language::Slovene,
+        Language::Portuguese,
     ];
     let detector: LanguageDetector = LanguageDetectorBuilder::from_languages(&languages).build();
     match detector.detect_language_of(text) {
