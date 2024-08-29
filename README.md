@@ -44,8 +44,9 @@ There are currently three slash commands (with more to come):
 Currently, the only app command is `Translate` which is available on any message. Just right click (on desktop) or hold-press (on mobile) on a message, go to Apps, and click the Translate button that pops up.
 
 ## Languages
+Supported languages are currently limited while we configure the Bittensor backend. If you're interested in a specific language, please let us know by making an [Issue](https://github.com/Agent-Artificial/syllibot/issues/new). Thanks in advance for contributing!
 
-### Supported:
+### Currently Supported:
 - Polish
 - French
 - German
