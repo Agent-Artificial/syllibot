@@ -38,7 +38,7 @@ There are currently three slash commands (with more to come):
 ### App Commands
 [App Commands](https://discord.com/developers/docs/interactions/application-commands) are the ones available contextually within discord by hold-pressing or right clicking a user, message, channel, etc.
 
-![Mobile App Command Demo](./docs/mobile_app_command_demo.gif)
+<img src="./docs/mobile_app_command_demo.gif" height="250" />
 
 Currently, the only app command is `Translate` which is available on any message. Just right click (on desktop) or hold-press (on mobile) on a message, go to Apps, and click the Translate button that pops up.
 
