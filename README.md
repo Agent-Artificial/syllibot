@@ -36,9 +36,10 @@ There are currently three slash commands (with more to come):
 3. `/supported_languages` - Shows the list of currently available languages. Anything not in this list will not translate to or from anything. As we add more languages, this command will likely be deprecated.
 
 ### App Commands
-[App Commands](https://discord.com/developers/docs/interactions/application-commands) are the ones available contextually within discord by hold-pressing or right clicking a user, message, channel, etc.
 
-<img src="./docs/mobile_app_command_demo.gif" height="250" />
+<img src="./docs/mobile_app_command_demo.gif" align="left" height="500" />
+
+[App Commands](https://discord.com/developers/docs/interactions/application-commands) are the ones available contextually within discord by hold-pressing or right clicking a user, message, channel, etc.
 
 Currently, the only app command is `Translate` which is available on any message. Just right click (on desktop) or hold-press (on mobile) on a message, go to Apps, and click the Translate button that pops up.
 
