@@ -1,3 +1,6 @@
+// Copyright: (c) 2024, J. Zane Cook <z@agentartificial.com>
+// GNU General Public License v3.0+ (see COPYING or https://www.gnu.org/licenses/gpl-3.0.txt)
+
 use language_detection::detect_language;
 use poise::serenity_prelude::{self as serenity, ComponentInteractionDataKind};
 use dotenv::dotenv;
