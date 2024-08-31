@@ -49,6 +49,7 @@ on:
         microservice_path:
           required: true
           type: string
+          default: .
           description: path within the caller's Git repo which contains the Dockerfile
         push:
           required: false
@@ -128,6 +129,7 @@ jobs:
             echo image_name: ${{env.image_name}}
             echo image_tag: ${{env.image_tag}}
             echo complete image name: ${{ env.image_name }}:${{ env.image_tag }}
+            echo Dockerfile Path: ${{ env.microservice_path }}//${{ env.docker_file }}
             echo "where am I"
             pwd
             ls -la
