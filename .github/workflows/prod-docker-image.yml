@@ -71,12 +71,18 @@ jobs:
         deployment_server: ${{ fromJson(needs.variables.outputs.deployment_servers) }}
 
     steps:
-      - uses: actions/checkout@v3
+      #- uses: actions/checkout@v3
 
       - name: Docker stop old container
         run: |
           docker container rm -f ${{needs.variables.outputs.microservice}}-${{needs.variables.outputs.microservice_env}} || $true
 
+      - name: Login to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Docker start new container
         run: >-
