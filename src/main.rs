@@ -318,7 +318,7 @@ async fn main() {
     let pool = config.pg.create_pool(None, NoTls).unwrap();
     info!("init::postgres_pool::{:?}", pool.status());
 
-    let token = std::env::var("DISCORD_TOKEN").expect("missing DISCORD_TOKEN");
+    let token = config.discord_token;
     let intents = serenity::GatewayIntents::non_privileged();
 
     let framework = poise::Framework::builder()
