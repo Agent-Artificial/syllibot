@@ -1,17 +1,20 @@
 // Copyright: (c) 2024, J. Zane Cook <z@agentartificial.com>
 // GNU General Public License v3.0+ (see COPYING or https://www.gnu.org/licenses/gpl-3.0.txt)
-
+use ::config::Config;
+use config::BotConfig;
 use language_detection::detect_language;
 use poise::serenity_prelude::{self as serenity, ComponentInteractionDataKind};
 use dotenv::dotenv;
 use log::info;
 use tokio::io::AsyncReadExt;
+use tokio_postgres::NoTls;
 use base64::{engine::general_purpose, Engine as _};
 
 mod language_detection;
 mod types;
 mod translation;
 mod files;
+mod config;
 
 use types::{
     SubnetPost,
@@ -305,6 +308,16 @@ async fn main() {
     env_logger::init();
     info!("Initializing...");
     dotenv().ok();
+
+    let config_ = Config::builder()
+        .add_source(::config::Environment::default())
+        .build()
+        .unwrap();
+    let config: BotConfig = config_.try_deserialize().expect("Config incorrect.");
+
+    let pool = config.pg.create_pool(None, NoTls).unwrap();
+    info!("init::postgres_pool::{:?}", pool.status());
+
     let token = std::env::var("DISCORD_TOKEN").expect("missing DISCORD_TOKEN");
     let intents = serenity::GatewayIntents::non_privileged();
 
