@@ -4,47 +4,26 @@
 use language_detection::detect_language;
 use poise::serenity_prelude::{self as serenity, ComponentInteractionDataKind};
 use dotenv::dotenv;
-use core::str;
-use std::io::Cursor;
 use log::info;
-use base64::{engine::general_purpose, Engine as _};
 use tokio::io::AsyncReadExt;
-use serde::{Deserialize, Serialize};
+use base64::{engine::general_purpose, Engine as _};
 
 mod language_detection;
+mod types;
+mod translation;
+mod files;
 
-#[derive(Debug, Serialize, Deserialize)]
-struct AudioPost {
-	input: String,
-	source_language: String,
-	target_language: String,
-	task_string: String,
-}
+use types::{
+    SubnetPost,
+    SubnetPostData,
+    Data,
+    Result,
+    Error,
+    Context,
+};
+use translation::text2text;
+use files::{fetch_file, delete_file};
 
-#[derive(Debug, Serialize, Deserialize)]
-struct AudioPostData {
-	data: AudioPost,
-}
-
-struct Data {} // User data, which is stored and accessible in all command invocations
-type Result<T> = std::result::Result<T, Box<dyn std::error::Error + Send + Sync>>;
-type Error = Box<dyn std::error::Error + Send + Sync>;
-type Context<'a> = poise::Context<'a, Data, Error>;
-
-async fn fetch_file(url: String, filename: &String) -> Result<()> {
-    let response = reqwest::get(&url).await?;
-    let mut file = std::fs::File::create(&filename)?;
-    let mut content = Cursor::new(response.bytes().await?);
-    std::io::copy(&mut content, &mut file)?;
-    info!("fetch_file::{} saved", filename);
-    Ok(())
-}
-
-async fn delete_file(filename: &String) -> Result<()> {
-    std::fs::remove_file(&filename)?;
-    info!("delete_file::{} deleted", filename);
-    Ok(())
-}
 
 pub fn get_available_languages() -> Vec<&'static str> {
     let available_languages = vec![
@@ -92,47 +71,11 @@ async fn autocomplete_language<'a>(
 		.collect()
 }
 
-#[derive(Debug, poise::Modal)]
-struct TranslationModal {
-    source_language: String,
-    target_language: String,
-}
-
 pub fn language_select_menu_options() -> Vec<serenity::CreateSelectMenuOption> {
     let available_languages = get_available_languages();
     available_languages.into_iter().map(|lang| serenity::CreateSelectMenuOption::new(lang, lang)).take(25).collect()
 }
 
-pub async fn text2text(text: &String, source_language: &String, target_language: &String) -> Result<String> {
-	let audio_post = AudioPost {
-		input: text.to_owned(),
-		source_language: source_language.to_owned(),
-		target_language: target_language.to_owned(),
-		task_string: "text2text".to_string(),
-	};
-	let body = AudioPostData {
-		data: audio_post,
-	};
-
-	info!("text2text::body::{:?}", body);
-
-    let client = reqwest::Client::new();
-    let response = client
-        .post("https://miner-cellium.ngrok.app/modules/translation/process")
-        .header("content-type", "application/json")
-        .json(&body)
-        .send().await?;
-
-	info!("audio_to_text::post_response::{:?}", response);
-
-    let response_text: String = response.text().await?;
-    let value: serde_json::Value = serde_json::from_str(&response_text).unwrap();
-    let json_str: String = value.as_str().unwrap().into();
-	let decoded_bytes = general_purpose::STANDARD.decode(&json_str)?;
-    let decoded_text = str::from_utf8(&decoded_bytes)?;
-    info!("audio_to_text::decoded_text::{:?}", decoded_text);
-    Ok(decoded_text.to_string())
-}
 
 /// List supported languages
 #[poise::command(slash_command, prefix_command)]
@@ -273,14 +216,14 @@ async fn audio_to_text(
     file.read_to_end(&mut bytes).await?;
     let encoded_data = general_purpose::STANDARD.encode(&bytes);
 
-	let audio_post = AudioPost {
+	let subnet_post = SubnetPost {
 		input: encoded_data,
 		source_language,
 		target_language,
 		task_string: "speech2text".to_string(),
 	};
-	let body = AudioPostData {
-		data: audio_post,
+	let body = SubnetPostData {
+		data: subnet_post,
 	};
 
 	info!("audio_to_text::body::{:?}", body);
@@ -299,7 +242,7 @@ async fn audio_to_text(
     let json_str: String = value.as_str().unwrap().into();
     info!("audio_to_text::response_text::{:?}", &json_str);
 	let decoded_bytes = general_purpose::STANDARD.decode(&json_str)?;
-    let decoded_text = str::from_utf8(&decoded_bytes)?;
+    let decoded_text = std::str::from_utf8(&decoded_bytes)?;
     info!("audio_to_text::decoded_text::{:?}", decoded_text);
 
     delete_file(&filename).await?;
