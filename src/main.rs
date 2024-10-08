@@ -1,50 +1,31 @@
 // Copyright: (c) 2024, J. Zane Cook <z@agentartificial.com>
 // GNU General Public License v3.0+ (see COPYING or https://www.gnu.org/licenses/gpl-3.0.txt)
-
+use ::config::Config;
+use config::BotConfig;
 use language_detection::detect_language;
 use poise::serenity_prelude::{self as serenity, ComponentInteractionDataKind};
 use dotenv::dotenv;
-use core::str;
-use std::io::Cursor;
 use log::info;
-use base64::{engine::general_purpose, Engine as _};
 use tokio::io::AsyncReadExt;
-use serde::{Deserialize, Serialize};
+use tokio_postgres::NoTls;
+use base64::{engine::general_purpose, Engine as _};
 
 mod language_detection;
+mod types;
+mod translation;
+mod files;
+mod config;
 
-#[derive(Debug, Serialize, Deserialize)]
-struct AudioPost {
-	input: String,
-	source_language: String,
-	target_language: String,
-	task_string: String,
-}
+use types::{
+    SubnetPost,
+    Data,
+    Result,
+    Error,
+    Context,
+};
+use translation::text2text;
+use files::{fetch_file, delete_file};
 
-#[derive(Debug, Serialize, Deserialize)]
-struct AudioPostData {
-	data: AudioPost,
-}
-
-struct Data {} // User data, which is stored and accessible in all command invocations
-type Result<T> = std::result::Result<T, Box<dyn std::error::Error + Send + Sync>>;
-type Error = Box<dyn std::error::Error + Send + Sync>;
-type Context<'a> = poise::Context<'a, Data, Error>;
-
-async fn fetch_file(url: String, filename: &String) -> Result<()> {
-    let response = reqwest::get(&url).await?;
-    let mut file = std::fs::File::create(&filename)?;
-    let mut content = Cursor::new(response.bytes().await?);
-    std::io::copy(&mut content, &mut file)?;
-    info!("fetch_file::{} saved", filename);
-    Ok(())
-}
-
-async fn delete_file(filename: &String) -> Result<()> {
-    std::fs::remove_file(&filename)?;
-    info!("delete_file::{} deleted", filename);
-    Ok(())
-}
 
 pub fn get_available_languages() -> Vec<&'static str> {
     let available_languages = vec![
@@ -92,47 +73,11 @@ async fn autocomplete_language<'a>(
 		.collect()
 }
 
-#[derive(Debug, poise::Modal)]
-struct TranslationModal {
-    source_language: String,
-    target_language: String,
-}
-
 pub fn language_select_menu_options() -> Vec<serenity::CreateSelectMenuOption> {
     let available_languages = get_available_languages();
     available_languages.into_iter().map(|lang| serenity::CreateSelectMenuOption::new(lang, lang)).take(25).collect()
 }
 
-pub async fn text2text(text: &String, source_language: &String, target_language: &String) -> Result<String> {
-	let audio_post = AudioPost {
-		input: text.to_owned(),
-		source_language: source_language.to_owned(),
-		target_language: target_language.to_owned(),
-		task_string: "text2text".to_string(),
-	};
-	let body = AudioPostData {
-		data: audio_post,
-	};
-
-	info!("text2text::body::{:?}", body);
-
-    let client = reqwest::Client::new();
-    let response = client
-        .post("https://miner-cellium.ngrok.app/modules/translation/process")
-        .header("content-type", "application/json")
-        .json(&body)
-        .send().await?;
-
-	info!("audio_to_text::post_response::{:?}", response);
-
-    let response_text: String = response.text().await?;
-    let value: serde_json::Value = serde_json::from_str(&response_text).unwrap();
-    let json_str: String = value.as_str().unwrap().into();
-	let decoded_bytes = general_purpose::STANDARD.decode(&json_str)?;
-    let decoded_text = str::from_utf8(&decoded_bytes)?;
-    info!("audio_to_text::decoded_text::{:?}", decoded_text);
-    Ok(decoded_text.to_string())
-}
 
 /// List supported languages
 #[poise::command(slash_command, prefix_command)]
@@ -162,7 +107,8 @@ pub async fn translate_text(
         Ok(detected_language) => {
             log::info!("translate_text::detected_language::{:?}", detected_language);
 
-            let translated_text = text2text(&text, &detected_language, &target_language).await?;
+            let mainnet_api_url = ctx.data().mainnet_api_url.clone();
+            let translated_text = text2text(mainnet_api_url, &text, &detected_language, &target_language).await?;
 
             ctx.say(translated_text).await?;
 
@@ -231,7 +177,8 @@ pub async fn translate_message(
                             .components(vec![])
                         ).await?;
                     component_interaction.defer_ephemeral(ctx).await?;
-                    let translated_text = text2text(message_content, &detected_language, &chosen_value).await?;
+                    let mainnet_api_url = ctx.data().mainnet_api_url.clone();
+                    let translated_text = text2text(mainnet_api_url, message_content, &detected_language, &chosen_value).await?;
                     msg.reply(ctx, format!("{}", translated_text)).await?;
                     info!("translate_message::sent_reply");
                     ephemeral_reply.delete(ctx).await?;
@@ -262,6 +209,7 @@ async fn audio_to_text(
 	target_language: String,
 
 ) -> Result<()> {
+    let mainnet_api_url = ctx.data().mainnet_api_url.clone();
     let filename = file.filename;
     let url = file.url;
     let filesize = file.size;
@@ -273,21 +221,18 @@ async fn audio_to_text(
     file.read_to_end(&mut bytes).await?;
     let encoded_data = general_purpose::STANDARD.encode(&bytes);
 
-	let audio_post = AudioPost {
+	let body = SubnetPost {
 		input: encoded_data,
 		source_language,
 		target_language,
 		task_string: "speech2text".to_string(),
-	};
-	let body = AudioPostData {
-		data: audio_post,
 	};
 
 	info!("audio_to_text::body::{:?}", body);
 
     let client = reqwest::Client::new();
     let response = client
-        .post("https://miner-cellium.ngrok.app/modules/translation/process")
+        .post(format!("{}/api/translation", mainnet_api_url))
         .header("content-type", "application/json")
         .json(&body)
         .send().await?;
@@ -299,7 +244,7 @@ async fn audio_to_text(
     let json_str: String = value.as_str().unwrap().into();
     info!("audio_to_text::response_text::{:?}", &json_str);
 	let decoded_bytes = general_purpose::STANDARD.decode(&json_str)?;
-    let decoded_text = str::from_utf8(&decoded_bytes)?;
+    let decoded_text = std::str::from_utf8(&decoded_bytes)?;
     info!("audio_to_text::decoded_text::{:?}", decoded_text);
 
     delete_file(&filename).await?;
@@ -312,6 +257,7 @@ async fn audio_to_text(
 async fn handle_reaction(
     ctx: &serenity::Context,
     reaction: &serenity::Reaction,
+    data: &Data,
 ) -> Result<()> {
     let available_flags = get_available_flags();
     let available_languages = get_available_languages();
@@ -324,7 +270,8 @@ async fn handle_reaction(
             log::info!("handle_reaction::message_content::{}", message_content);
             match detect_language(&message_content) {
                 Ok(detected_language) => {
-                    let translation = text2text(message_content, &detected_language, &available_languages[index].to_string()).await?;
+                    let mainnet_api_url = data.mainnet_api_url.clone();
+                    let translation = text2text(mainnet_api_url, &message_content, &detected_language, &available_languages[index].to_string()).await?;
                     message.reply(ctx, translation).await?;
                 }
                 Err(error_text) => {
@@ -336,18 +283,33 @@ async fn handle_reaction(
     Ok(())
 }
 
+/// Test database connection
+#[poise::command(slash_command, prefix_command)]
+async fn test_database(
+    ctx: Context<'_>,
+) -> Result<()> {
+    let client: deadpool_postgres::Client = ctx.data().pool.get().await?;
+    let _stmt = "SELECT version();";
+    let stmt = client.prepare(&_stmt).await.unwrap();
+    let result = client
+        .query(&stmt, &[])
+        .await?;
+    log::info!("test_database::{:?}", result);
+    Ok(())
+}
+
 async fn event_handler(
     ctx: &serenity::Context,
     event: &serenity::FullEvent,
     _framework: poise::FrameworkContext<'_, Data, Error>,
-    _data: &Data,
+    data: &Data,
 ) -> Result<()> {
     match event {
         serenity::FullEvent::Ready { data_about_bot, .. } => {
             log::info!("Logged in as {}", data_about_bot.user.name);
         }
         serenity::FullEvent::ReactionAdd { add_reaction } => {
-            handle_reaction(ctx, add_reaction).await?;
+            handle_reaction(ctx, add_reaction, data).await?;
         }
         _ => {}
     }
@@ -362,7 +324,17 @@ async fn main() {
     env_logger::init();
     info!("Initializing...");
     dotenv().ok();
-    let token = std::env::var("DISCORD_TOKEN").expect("missing DISCORD_TOKEN");
+
+    let config_ = Config::builder()
+        .add_source(::config::Environment::default())
+        .build()
+        .unwrap();
+    let config: BotConfig = config_.try_deserialize().expect("Config incorrect.");
+
+    let pool = config.pg.create_pool(None, NoTls).unwrap();
+    info!("init::postgres_pool::{:?}", pool.status());
+
+    let token = config.discord_token;
     let intents = serenity::GatewayIntents::non_privileged();
 
     let framework = poise::Framework::builder()
@@ -372,6 +344,7 @@ async fn main() {
                 translate_message(),
                 translate_text(),
                 supported_languages(),
+                test_database(),
             ],
             event_handler: |ctx, event, framework, data| {
                 Box::pin(event_handler(ctx, event, framework, data))
@@ -381,7 +354,10 @@ async fn main() {
         .setup(|ctx, _ready, framework| {
             Box::pin(async move {
                 poise::builtins::register_globally(ctx, &framework.options().commands).await?;
-                Ok(Data {})
+                Ok(Data {
+                    mainnet_api_url: config.mainnet_api_url,
+                    pool
+                })
             })
         })
         .build();

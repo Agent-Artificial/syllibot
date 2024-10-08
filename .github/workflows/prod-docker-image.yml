@@ -91,6 +91,14 @@ jobs:
           --restart always
           -e APP_VERSION=$GITHUB_REF_NAME
           -e DISCORD_TOKEN=${{ secrets.DISCORD_TOKEN }}
+          -e MAINNET_API_URL=https://sylliba-api-prod.agentartificial.com
+          -e TESTNET_API_URL=https://sylliba-api-dev.agentartificial.com
+          -e PG.HOST=0.0.0.0
+          -e PG.PORT=5438
+          -e PG.USER=postgres
+          -e PG.PASSWORD=postgres
+          -e PG.DBNAME=sylliba
+          -e PG.POOL.MAX_SIZE=16
           -e environment=${{needs.variables.outputs.microservice_env}}
           --add-host host.docker.internal:host-gateway
           -d ghcr.io/agent-artificial/${{needs.variables.outputs.microservice}}-${{needs.variables.outputs.microservice_env}}:${{needs.variables.outputs.image_tag}}
