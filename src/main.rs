@@ -18,7 +18,6 @@ mod config;
 
 use types::{
     SubnetPost,
-    SubnetPostData,
     Data,
     Result,
     Error,
@@ -108,7 +107,8 @@ pub async fn translate_text(
         Ok(detected_language) => {
             log::info!("translate_text::detected_language::{:?}", detected_language);
 
-            let translated_text = text2text(&text, &detected_language, &target_language).await?;
+            let mainnet_api_url = ctx.data().mainnet_api_url.clone();
+            let translated_text = text2text(mainnet_api_url, &text, &detected_language, &target_language).await?;
 
             ctx.say(translated_text).await?;
 
@@ -177,7 +177,8 @@ pub async fn translate_message(
                             .components(vec![])
                         ).await?;
                     component_interaction.defer_ephemeral(ctx).await?;
-                    let translated_text = text2text(message_content, &detected_language, &chosen_value).await?;
+                    let mainnet_api_url = ctx.data().mainnet_api_url.clone();
+                    let translated_text = text2text(mainnet_api_url, message_content, &detected_language, &chosen_value).await?;
                     msg.reply(ctx, format!("{}", translated_text)).await?;
                     info!("translate_message::sent_reply");
                     ephemeral_reply.delete(ctx).await?;
@@ -208,6 +209,7 @@ async fn audio_to_text(
 	target_language: String,
 
 ) -> Result<()> {
+    let mainnet_api_url = ctx.data().mainnet_api_url.clone();
     let filename = file.filename;
     let url = file.url;
     let filesize = file.size;
@@ -219,21 +221,18 @@ async fn audio_to_text(
     file.read_to_end(&mut bytes).await?;
     let encoded_data = general_purpose::STANDARD.encode(&bytes);
 
-	let subnet_post = SubnetPost {
+	let body = SubnetPost {
 		input: encoded_data,
 		source_language,
 		target_language,
 		task_string: "speech2text".to_string(),
-	};
-	let body = SubnetPostData {
-		data: subnet_post,
 	};
 
 	info!("audio_to_text::body::{:?}", body);
 
     let client = reqwest::Client::new();
     let response = client
-        .post("https://miner-cellium.ngrok.app/modules/translation/process")
+        .post(format!("{}/api/translation", mainnet_api_url))
         .header("content-type", "application/json")
         .json(&body)
         .send().await?;
@@ -258,6 +257,7 @@ async fn audio_to_text(
 async fn handle_reaction(
     ctx: &serenity::Context,
     reaction: &serenity::Reaction,
+    data: &Data,
 ) -> Result<()> {
     let available_flags = get_available_flags();
     let available_languages = get_available_languages();
@@ -270,7 +270,8 @@ async fn handle_reaction(
             log::info!("handle_reaction::message_content::{}", message_content);
             match detect_language(&message_content) {
                 Ok(detected_language) => {
-                    let translation = text2text(message_content, &detected_language, &available_languages[index].to_string()).await?;
+                    let mainnet_api_url = data.mainnet_api_url.clone();
+                    let translation = text2text(mainnet_api_url, &message_content, &detected_language, &available_languages[index].to_string()).await?;
                     message.reply(ctx, translation).await?;
                 }
                 Err(error_text) => {
@@ -282,18 +283,33 @@ async fn handle_reaction(
     Ok(())
 }
 
+/// Test database connection
+#[poise::command(slash_command, prefix_command)]
+async fn test_database(
+    ctx: Context<'_>,
+) -> Result<()> {
+    let client: deadpool_postgres::Client = ctx.data().pool.get().await?;
+    let _stmt = "SELECT version();";
+    let stmt = client.prepare(&_stmt).await.unwrap();
+    let result = client
+        .query(&stmt, &[])
+        .await?;
+    log::info!("test_database::{:?}", result);
+    Ok(())
+}
+
 async fn event_handler(
     ctx: &serenity::Context,
     event: &serenity::FullEvent,
     _framework: poise::FrameworkContext<'_, Data, Error>,
-    _data: &Data,
+    data: &Data,
 ) -> Result<()> {
     match event {
         serenity::FullEvent::Ready { data_about_bot, .. } => {
             log::info!("Logged in as {}", data_about_bot.user.name);
         }
         serenity::FullEvent::ReactionAdd { add_reaction } => {
-            handle_reaction(ctx, add_reaction).await?;
+            handle_reaction(ctx, add_reaction, data).await?;
         }
         _ => {}
     }
@@ -328,6 +344,7 @@ async fn main() {
                 translate_message(),
                 translate_text(),
                 supported_languages(),
+                test_database(),
             ],
             event_handler: |ctx, event, framework, data| {
                 Box::pin(event_handler(ctx, event, framework, data))
@@ -337,7 +354,10 @@ async fn main() {
         .setup(|ctx, _ready, framework| {
             Box::pin(async move {
                 poise::builtins::register_globally(ctx, &framework.options().commands).await?;
-                Ok(Data {})
+                Ok(Data {
+                    mainnet_api_url: config.mainnet_api_url,
+                    pool
+                })
             })
         })
         .build();

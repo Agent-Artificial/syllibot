@@ -9,12 +9,10 @@ pub struct SubnetPost {
 	pub task_string: String,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
-pub struct SubnetPostData {
-	pub data: SubnetPost,
-}
-
-pub struct Data {} // User data, which is stored and accessible in all command invocations
+pub struct Data {
+    pub mainnet_api_url: String,
+    pub pool: deadpool_postgres::Pool,
+} // User data, which is stored and accessible in all command invocations
 pub type Result<T> = std::result::Result<T, Box<dyn std::error::Error + Send + Sync>>;
 pub type Error = Box<dyn std::error::Error + Send + Sync>;
 pub type Context<'a> = poise::Context<'a, Data, Error>;

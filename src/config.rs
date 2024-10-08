@@ -4,6 +4,8 @@ use deadpool_postgres::PoolConfig;
 
 #[derive(Debug, Deserialize, Serialize)]
 pub struct BotConfig {
+    pub mainnet_api_url: String,
+    pub testnet_api_url: String,
     pub discord_token: String,
     pub pg: deadpool_postgres::Config,
 }
@@ -11,6 +13,8 @@ pub struct BotConfig {
 impl Default for BotConfig {
     fn default() -> Self {
         Self {
+            mainnet_api_url: "".to_string(),
+            testnet_api_url: "".to_string(),
             discord_token: "".to_string(),
             pg: deadpool_postgres::Config {
                 host: Some("127.0.0.1".to_string()),
